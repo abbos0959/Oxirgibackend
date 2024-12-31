@@ -10,6 +10,8 @@ const {
    blockUser,
    unblockUser,
    updatePassword,
+   forgotPasswordToken,
+   resetPassword,
 } = require("../controller/userCtr");
 
 const userRouter = express.Router();
@@ -19,6 +21,7 @@ const authoriseRoles = require("../middlewares/isAuth");
 
 userRouter.post("/register", registerUser);
 userRouter.post("/login", loginUSer);
+userRouter.post("/forgot", authoriseRoles.Isauthentication, forgotPasswordToken);
 
 // get Routerlar
 
@@ -55,6 +58,8 @@ userRouter.patch(
 );
 
 userRouter.patch("/update-password", authoriseRoles.Isauthentication, updatePassword);
+
+userRouter.patch("/reset-password/:token", authoriseRoles.Isauthentication, resetPassword);
 //  delete routerlar
 userRouter.delete(
    "/delete/:id",

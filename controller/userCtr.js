@@ -1,11 +1,13 @@
 const usermodel = require("../models/usermodel");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
 const catchAsynchron = require("../utility/catchUtil");
 const jwtToken = require("../utility/jwtToken");
 const catchErrorAsync = require("../utility/catchUtil");
 const { default: mongoose } = require("mongoose");
 const AppError = require("../utility/appError");
+const sendEmail = require("../utility/sendEmail");
 
 const registerUser = catchAsynchron(async (req, res) => {
    try {
@@ -259,6 +261,112 @@ const updatePassword = catchAsynchron(async (req, res, next) => {
    }
 });
 
+// const forgotPasswordToken = catchAsynchron(async (req, res, next) => {
+//    try {
+//       const { email } = req.body;
+
+//       const user = await usermodel.findOne({ email });
+
+//       if (!user) {
+//          return next(new AppError("bunday email user mavjud emas", 404));
+//       }
+
+//       const token = await usermodel.createPasswordResetToken();
+//       await user.save();
+//       const resetLink = `http://localhost:4000/api/user/reset-password/${token}`;
+//       res.status(200).json(resetLink);
+//    } catch (error) {
+//       res.status(400).json({
+//          message: error.message,
+//       });
+//    }
+// });
+const forgotPasswordToken = async (req, res) => {
+   try {
+      const user = await usermodel.findOne({ email: req.body.email }).select("+password");
+      console.log(user);
+
+      if (!user) {
+         return res.status(404).json({
+            success: false,
+            message: "bunday user mavjud emas",
+         });
+      }
+
+      const resetPasswordToken = await user.createPasswordResetToken();
+
+      console.log(resetPasswordToken);
+      await user.save();
+
+      const resetPasswordUrl = `${req.protocol}://${req.get(
+         "host"
+      )}/api/v1/user/reset-password/${resetPasswordToken}`;
+
+      const message = `sizning  parolingiz  tiklash tokeni ${resetPasswordUrl}`;
+
+      try {
+         await sendEmail({
+            email: user.email,
+            subject: "parolingizni tiklash tokeni",
+            message,
+         });
+         res.status(200).json({
+            message: "emailga token yuborildi",
+         });
+      } catch (error) {
+         (user.passwordResetToken = undefined), (user.passwordResetExpires = undefined);
+         await user.save({ validateBeforeSave: false });
+         res.status(500).json({
+            success: false,
+            message: error.message,
+         });
+      }
+   } catch (error) {
+      res.status(500).json({
+         success: false,
+         message: error.message,
+      });
+   }
+};
+
+const resetPassword = async (req, res) => {
+   try {
+      const resetPasswordToken = crypto.createHash("sha256").update(req.params.token).digest("hex");
+
+      //token bo'yicha userni qidirib topish
+      const user = await usermodel
+         .findOne({
+            passwordResetToken: resetPasswordToken,
+            passwordResetExpires: { $gt: Date.now() },
+         })
+         .select("+password");
+
+      if (!user) {
+         return res.status(404).json({
+            success: false,
+            message: "token Xatolik mavjud",
+         });
+      }
+      // parolni o'zgartirish
+
+      // const hashPassword1 = await bcrypt.hash(req.body.password, 12);
+      user.password = req.body.password;
+      user.passwordResetToken = undefined;
+      user.passwordResetExpires = undefined;
+
+      await user.save();
+      res.status(200).json({
+         success: true,
+         message: "parol yangilandi",
+      });
+   } catch (error) {
+      res.status(500).json({
+         success: false,
+         message: error.message,
+      });
+   }
+};
+
 module.exports = {
    getAUser,
    registerUser,
@@ -270,4 +378,6 @@ module.exports = {
    UpdateUserprofile,
    deleteUser,
    updatePassword,
+   forgotPasswordToken,
+   resetPassword,
 };
