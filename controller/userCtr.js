@@ -18,7 +18,6 @@ const registerUser = catchAsynchron(async (req, res) => {
             message: "bunday user allaqachon mavjud",
          });
       } else {
-         const hashpassword = await bcrypt.hash(password, 10);
          const user = await usermodel.create({
             email,
             firstname,
@@ -26,7 +25,7 @@ const registerUser = catchAsynchron(async (req, res) => {
             mobile,
             profession,
             role,
-            password: hashpassword,
+            password,
          });
          jwtToken(user, 200, res);
       }
@@ -39,7 +38,7 @@ const registerUser = catchAsynchron(async (req, res) => {
 
 const loginUSer = catchErrorAsync(async (req, res) => {
    const { email, password } = req.body;
-   const oldUser = await usermodel.findOne({ email });
+   const oldUser = await usermodel.findOne({ email }).select("+password");
    if (!oldUser) {
       return res.status(404).json({
          message: "parol yoki email xatoligi",
@@ -163,4 +162,112 @@ const deleteUser = catchAsynchron(async (req, res, next) => {
       });
    }
 });
-module.exports = { registerUser, loginUSer, getAllUser, UpdateUser, UpdateUserprofile, deleteUser };
+
+const getAUser = catchAsynchron(async (req, res, next) => {
+   try {
+      const { id } = req.params;
+      const checkUser = new mongoose.Types.ObjectId(id);
+
+      const user = await usermodel.findById(id);
+
+      if (!checkUser || !user) {
+         return next(new AppError("bunday user mavjud emas", 404));
+      }
+      res.status(200).json({
+         success: true,
+         user,
+      });
+   } catch (error) {
+      res.statu(400).json({
+         message: error.message,
+      });
+   }
+});
+
+const blockUser = catchAsynchron(async (req, res, next) => {
+   try {
+      const { id } = req.params;
+
+      const checkId = new mongoose.Types.ObjectId(id);
+      if (!checkId) {
+         return next(new AppError("bunday id mavjud emas", 404));
+      }
+      const userblocked = await usermodel.findByIdAndUpdate(id, { isblocked: true }, { new: true });
+      res.status(200).json({
+         success: true,
+         userblocked,
+      });
+   } catch (error) {
+      res.status(404).json({
+         message: error.message,
+      });
+   }
+});
+const unblockUser = catchAsynchron(async (req, res, next) => {
+   try {
+      const { id } = req.params;
+
+      const checkId = new mongoose.Types.ObjectId(id);
+      if (!checkId) {
+         return next(new AppError("bunday id mavjud emas", 404));
+      }
+      const userUnblocked = await usermodel.findByIdAndUpdate(
+         id,
+         { isblocked: false },
+         { new: true }
+      );
+      res.status(200).json({
+         success: true,
+         userUnblocked,
+      });
+   } catch (error) {
+      res.status(404).json({
+         message: error.message,
+      });
+   }
+});
+
+const updatePassword = catchAsynchron(async (req, res, next) => {
+   try {
+      const { _id } = req.user;
+
+      const { password, newPassword } = req.body;
+
+      if (password === newPassword) {
+         return next(new AppError("Yangi parol eskisi bilan bir xil bo'lmasligi kerak", 400));
+      }
+
+      const user = await usermodel.findById(_id).select("+password");
+      if (!user) {
+         return next(new AppError("bunday foydalanuvchi topilmadi", 404));
+      }
+
+      if (!(await bcrypt.compare(password, user.password))) {
+         return next(new AppError("eski parolni xato kiritdingiz", 404));
+      }
+
+      user.password = req.body.newPassword;
+      await user.save();
+      res.status(200).json({
+         success: true,
+         message: "parol yangilandi",
+      });
+   } catch (error) {
+      res.status(400).json({
+         message: error.message,
+      });
+   }
+});
+
+module.exports = {
+   getAUser,
+   registerUser,
+   loginUSer,
+   unblockUser,
+   blockUser,
+   getAllUser,
+   UpdateUser,
+   UpdateUserprofile,
+   deleteUser,
+   updatePassword,
+};

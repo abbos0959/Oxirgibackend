@@ -23,7 +23,6 @@ exports.Isauthentication = catchErrorAsync(async (req, res, next) => {
 exports.role = (roles) => {
    return catchErrorAsync(async (req, res, next) => {
       // 1) User ni roleni olamiz databasedan, tekshiramiz
-      console.log(req.user, "userbek");
       if (!roles.includes(req.user.role)) {
          return next(new AppError("Siz bu amaliyotni bajarish huquqiga ega emassiz!", 401));
       }
